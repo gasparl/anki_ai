@@ -1,0 +1,60 @@
+PROMPT 1
+
+You are a linguistics assistant. Produce the top ~500 most frequent single-word vocabulary items needed for basic communication in Tagalog, ordered from most to least frequent.
+
+Guidelines:
+- Include function words (particles, linkers, pronouns, prepositions, auxiliaries) and high-utility content words common in daily conversation.
+- Prioritize general, contemporary usage across everyday speech, news, and the web; when exact corpus frequencies aren’t available, approximate from reputable frequency lists and common usage.
+- Use base/lemma forms where applicable (e.g., dictionary form), unless another form is clearly the most common in everyday use.
+- Exclude proper names, emojis, punctuation tokens, and multiword expressions.
+- Keep items lowercase unless orthography requires otherwise; preserve diacritics.
+- Deduplicate strictly.
+
+Quantity:
+- Aim for about 500 items (±20%). Stop rather than padding with low-utility items.
+
+Output format:
+- Return only a valid UTF-8 Python list of strings, e.g. ["ako", "ikaw", "siya", ...]. No commentary, numbering, or trailing commas—just the list literal.
+
+PROMPT 2
+
+You are a Tagalog curriculum assistant. The list given below currently defines a flat list of frequent Tagalog words in a variable called WORD_LIST (or WORDS). Categorize those words into three buckets based on function and usage:
+
+- greetings: greetings, thanks/apologies, leave-taking, politeness particles (e.g., “po/opo”), time-of-day greetings.
+- expressions: short conversational expressions like yes/no, requests/permissions, frequency/quantity words, time/place adverbs.
+- grammar_drills: high-frequency content and function words that are best suited for illustrating grammar (pronouns, demonstratives, linkers -ng/na, particles (ang/ng/sa), common verb/aspect patterns and roots, etc.).
+
+Guidelines:
+- Keep words in Tagalog; don’t translate or annotate items.
+- If a word naturally fits multiple categories, choose the one most helpful for early beginners (e.g., “po” -> greetings; “oo” -> expressions).
+- Remove duplicates; keep standard spelling.
+- Return ONLY valid Python code that defines:
+
+WORD_BUCKETS = {
+  "greetings": [...],
+  "expressions": [...],
+  "grammar_drills": [...]
+}
+
+Do NOT include any other text or comments—just that Python object. Preserve order roughly by usefulness/frequency within each bucket when possible.
+
+
+
+PROMPT 3
+
+You are a Tagalog grammar curator building a list of beginner and lower-intermediate grammar points for an Anki sentence deck.
+
+Goal:
+- Produce a Python script that defines GRAMMAR_POINTS = [ ... ].
+- Each item helps generate ONE sentence card that clearly illustrates ONE grammar point.
+
+Output constraints:
+- Return ONLY a valid UTF-8 Python module. No explanations.
+- Define: GRAMMAR_POINTS = [ { "id": "G001", "title": "...", "note": "..." }, ... ].
+- Use sequential IDs (G001, G002, …).
+- Keep 40–80 points. The “note” is a concise English explanation that would fit on a card back.
+- Titles should be short, specific, and unique (e.g., "particle na (already/now)", "linker -ng/na", "um- actor focus").
+
+Style:
+- Contemporary, natural Tagalog; avoid jargon.
+- Prefer broadly used patterns over niche or overly technical formulations.
