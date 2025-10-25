@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Tagalog card generator (Anki-ready JSON) - Fixed Wiktionary version
+Tagalog card generator (Anki-ready JSON)
 """
 
 from __future__ import annotations
@@ -13,23 +13,23 @@ import types
 import logging
 import importlib.util
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Set
+from typing import Any, Dict, List, Optional, Tuple, Set, Generator
 from datetime import datetime
 import requests
 import html
 
 # --------------------------- easy testing toggle ---------------------------
-TEST_MODE = True
+TEST_MODE = False
 
 TEST_LIMITS = {
     "greetings_items": 2,
     "expressions_items": 2,
-    "grammar_drills_items": 2,
-    "grammar_points": 2,
+    "grammar_drills_items": 3,
+    "grammar_points": 3,
     "greet_per_word": 1,
     "expr_per_word": 1,
     "grammar_examples_per_point": 1,
-}
+} 
 
 # --------------------------- model ---------------------------
 
@@ -360,10 +360,16 @@ def ensure_target_present(sentence_tl: str, target: Optional[str], vocab: Set[st
         if token == target_norm:
             return True
         
-        # Lemma match (trust your existing try_lemma)
+        # Lemma match
         lemma = try_lemma(token, vocab)
         if lemma == target_norm:
             return True
+        
+        # Check if token starts with target + common Tagalog suffixes
+        common_suffixes = ['ng', 'g', 'n', 'm']
+        for suffix in common_suffixes:
+            if token == target_norm + suffix:
+                return True
     
     return False
 
@@ -792,7 +798,7 @@ class Builder:
         else:
             self.word_buckets = word_buckets
             self.grammar_points = grammar_points
-            self.greet_per_word = 2
+            self.greet_per_word = 1
             self.expr_per_word = 2
             self.grammar_examples_per_point = 2
         
@@ -980,9 +986,9 @@ class Builder:
                     "success_rate": f"{(found_count/total_count)*100:.1f}%"
                 }
             }
-
-    def build_vocab_stage(self, stage: str, items: List[str], per_word: int, progress: ProgressTracker) -> List[Dict[str, Any]]:
-        cards: List[Dict[str, Any]] = []
+    
+    def build_vocab_stage(self, stage: str, items: List[str], per_word: int, progress: ProgressTracker) -> Generator[Dict[str, Any], None, None]:
+        """Yields cards as they're generated instead of returning a complete list"""
         
         for x in items:
             for _ in range(per_word):
@@ -1006,20 +1012,17 @@ class Builder:
                     "wiktionary_trace": breakdown_data["wiktionary_trace"]
                 }
                 self.card_counter += 1
-                cards.append(card)
-        
-        return cards
+                yield card
 
-    def build_greetings(self, progress: ProgressTracker) -> List[Dict[str, Any]]:
-        return self.build_vocab_stage("greeting", self.word_buckets.get("greetings", []), self.greet_per_word, progress)
-
-    def build_expressions(self, progress: ProgressTracker) -> List[Dict[str, Any]]:
+    def build_greetings(self, progress: ProgressTracker) -> Generator[Dict[str, Any], None, None]:
+        yield from self.build_vocab_stage("greeting", self.word_buckets.get("greetings", []), self.greet_per_word, progress)
+    
+    def build_expressions(self, progress: ProgressTracker) -> Generator[Dict[str, Any], None, None]:
         items = self.word_buckets.get("expressions", [])
-        return self.build_vocab_stage("expression", items, self.expr_per_word, progress)
+        yield from self.build_vocab_stage("expression", items, self.expr_per_word, progress)
 
-
-    def build_grammar(self, progress: ProgressTracker) -> List[Dict[str, Any]]:
-        cards: List[Dict[str, Any]] = []
+    def build_grammar(self, progress: ProgressTracker) -> Generator[Dict[str, Any], None, None]:
+        """Yields grammar cards as they're generated"""
         drills = self.word_buckets.get("grammar_drills", [])
         
         if not drills:
@@ -1057,12 +1060,13 @@ class Builder:
                         "explanation_en": res.get("explanation_en", ""),
                         "ipa": breakdown_data["ipa"],
                         "word_breakdown": breakdown_data["breakdown"],
-                                "wiktionary_trace": breakdown_data["wiktionary_trace"]
+                        "wiktionary_trace": breakdown_data["wiktionary_trace"]
                     }
                     self.card_counter += 1
-                    cards.append(card)
+                    yield card
+            
             log.info("Grammar drill usage distribution: %s", dict(drills_usage_count))
-
+    
         else:
             # Fallback: no drills available
             for idx_gp, gp in enumerate(self.grammar_points):
@@ -1091,9 +1095,7 @@ class Builder:
                         "wiktionary_trace": breakdown_data["wiktionary_trace"]
                     }
                     self.card_counter += 1
-                    cards.append(card)
-        
-        return cards
+                    yield card
 
 
 
