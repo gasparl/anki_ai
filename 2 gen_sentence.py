@@ -334,11 +334,35 @@ def ensure_target_present(sentence_tl: str, target: Optional[str], vocab: Set[st
     if not target:
         return True
     
-    toks = tokenize_simple(sentence_tl)
-    tbase = target.lower()
+    # Normalize text for comparison
+    def normalize_text(text: str) -> str:
+        text = text.lower()
+        # Remove apostrophes and diacritics
+        text = text.replace("'", "").replace("’", "")
+        text = text.replace("ô", "o").replace("ó", "o")
+        text = text.replace("â", "a").replace("á", "a") 
+        text = text.replace("ê", "e").replace("é", "e")
+        text = text.replace("î", "i").replace("í", "i")
+        text = text.replace("û", "u").replace("ú", "u")
+        return text
     
-    for tok in toks:
-        if try_lemma(tok, vocab) == tbase:
+    target_norm = normalize_text(target)
+    sentence_norm = normalize_text(sentence_tl)
+    
+    # Handle multi-word targets like "walang anuman"
+    if ' ' in target_norm:
+        return target_norm in sentence_norm
+    
+    tokens = tokenize_simple(sentence_norm)
+    
+    for token in tokens:
+        # Exact match
+        if token == target_norm:
+            return True
+        
+        # Lemma match (trust your existing try_lemma)
+        lemma = try_lemma(token, vocab)
+        if lemma == target_norm:
             return True
     
     return False
@@ -475,7 +499,7 @@ def extract_ipa(section_text: str) -> Optional[str]:
                     log.warning("IPA extraction - found: %s", ipa)
                     return f"/{ipa}/"
         
-        log.warning("IPA extraction - no IPA found")
+        #log.warning("IPA extraction - no IPA found")
         return None
         
     except Exception as e:
@@ -671,8 +695,9 @@ def sys_prompt_generate(stage: str) -> str:
     shared_rules = (
         "Quality rules:\n"
         "- Use only authentic Tagalog grammar and common vocabulary.\n"
-        "- Prefer high-frequency, idiomatic forms; avoid rare/archaic forms.\n"
+        "- Prefer high-frequency, idiomatic forms.\n"
         "- Never fabricate grammatical rules, history, or cultural claims.\n"
+        "- Keep explanations simple and accessible for beginners."
         "- The provided target MUST appear (base or inflected) in 'sentence_tl'.\n"
     )
 
@@ -708,7 +733,7 @@ def sys_prompt_breakdown() -> str:
         "GROUNDING:\n"
         "- Use the provided Wiktionary data as primary source, but apply common sense for basic Tagalog words.\n"
         "- For very common words (like 'ay', 'ako', basic verbs), provide reasonable information even if Wiktionary data is incomplete or unclear.\n"
-        "- Ignore irrelevant or incorrect definitions.\n"
+        "- Ignore irrelevant or incorrect information.\n"
         "- If something is unclear or missing, state it explicitly as 'Uncertain: <short note>'.\n"
         "- When Wiktionary lists multiple meanings or etymologies, choose the one that makes sense in the sentence context.\n\n"
         "FORMAT (STRICT JSON ONLY):\n"
@@ -720,6 +745,7 @@ def sys_prompt_breakdown() -> str:
         "CONTENT GUIDELINES:\n"
         "- Include multiple senses or nuances if attested in the provided data or otherwise certain.\n"
         "- Note morphology (affixes, reduplication) and salient grammar.\n"
+        "- Keep explanations simple and accessible for beginners."
     )
 
 BREAKDOWN_SCHEMA = {
@@ -860,7 +886,21 @@ class Builder:
             return {"sentence_tl": tl, "sentence_en": en, "explanation_en": ge}
         
         log.warning("Failed to generate %s. Last reason: %s", stage, fail_reason or "unknown")
-        return None
+        log.warning("Failed to generate %s after 3 attempts. Last reason: %s - FORCING CREATION", stage, fail_reason or "unknown")
+
+        # Force create a card with the best available data
+        if tl and en:  # If we have at least some content from the attempts
+            progress.update()
+            return {
+                "sentence_tl": tl, 
+                "sentence_en": en, 
+                "explanation_en": f"{ge or ''} [WARNING: Failed validation: {fail_reason}]"
+            }
+        else:
+            # Fallback: create minimal card
+            progress.update()
+            return None
+        
 
     def generate_enhanced_breakdown(self, sentence_tl: str, sentence_en: str, progress: ProgressTracker) -> Dict[str, Any]:
         """Generate enhanced word breakdown with direct Wiktionary API"""
